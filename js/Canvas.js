@@ -646,7 +646,7 @@ export class Canvas {
             const maskCtx = maskCanvas.getContext('2d');
 
             // 填充白色背景
-            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillStyle = '#ffffff00';
             tempCtx.fillRect(0, 0, this.width, this.height);
             
             // 填充黑色背景作为遮罩的基础

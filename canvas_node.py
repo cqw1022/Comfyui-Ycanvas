@@ -269,10 +269,10 @@ class CanvasNode:
                 if i.mode not in ['RGB', 'RGBA']:
                     i = i.convert('RGB')
                 image = np.array(i).astype(np.float32) / 255.0
-                if i.mode == 'RGBA':
-                    rgb = image[..., :3]
-                    alpha = image[..., 3:]
-                    image = rgb * alpha + (1 - alpha) * 0.5
+                # if i.mode == 'RGBA':
+                #     rgb = image[..., :3]
+                #     alpha = image[..., 3:]
+                #     image = rgb * alpha + (1 - alpha) * 0.5
                 processed_image = torch.from_numpy(image)[None,]
             except Exception as e:
                 # 如果读取失败，创建白色画布
