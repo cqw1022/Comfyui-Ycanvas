@@ -146,24 +146,43 @@ export class Canvas {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
+            // 计算画布的缩放比例
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
+            const scaleX = this.width / displayWidth;
+            const scaleY = this.height / displayHeight;
+            const scaledMouseX = mouseX * scaleX;
+            const scaledMouseY = mouseY * scaleY;
+
             // 如果在裁剪模式下
             if (this.isCroppingMode) {
-                // 开始裁剪区域选择
                 this.isCropping = true;
                 
-                // 计算画布的缩放比例
-                const displayWidth = rect.width;
-                const displayHeight = rect.height;
-                const scaleX = this.width / displayWidth;
-                const scaleY = this.height / displayHeight;
-                
-                // 应用缩放比例计算实际坐标
-                this.cropStartX = mouseX * scaleX;
-                this.cropStartY = mouseY * scaleY;
-                this.cropEndX = mouseX * scaleX;
-                this.cropEndY = mouseY * scaleY;
-                
-                isCroppingDrag = true;
+                if (this.cropHandleHovered !== null) {
+                    // 开始拖拽控制点
+                    this.cropHandleDragging = this.cropHandleHovered;
+                } else {
+                    // 检查是否点击在裁剪框内
+                    const cropX = Math.min(this.cropStartX, this.cropEndX);
+                    const cropY = Math.min(this.cropStartY, this.cropEndY);
+                    const cropWidth = Math.abs(this.cropEndX - this.cropStartX);
+                    const cropHeight = Math.abs(this.cropEndY - this.cropStartY);
+                    
+                    if (cropWidth > 0 && cropHeight > 0 &&
+                        scaledMouseX > cropX && scaledMouseX < cropX + cropWidth &&
+                        scaledMouseY > cropY && scaledMouseY < cropY + cropHeight) {
+                        // 开始拖拽整个裁剪框
+                        this.cropBoxDragging = true;
+                        this.lastMouseX = scaledMouseX;
+                        this.lastMouseY = scaledMouseY;
+                    } else {
+                        // 开始新的裁剪区域选择
+                        this.cropStartX = scaledMouseX;
+                        this.cropStartY = scaledMouseY;
+                        this.cropEndX = scaledMouseX;
+                        this.cropEndY = scaledMouseY;
+                    }
+                }
                 return;
             }
 
@@ -230,17 +249,112 @@ export class Canvas {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             
+            // 计算画布的缩放比例
+            const displayWidth = rect.width;
+            const displayHeight = rect.height;
+            const scaleX = this.width / displayWidth;
+            const scaleY = this.height / displayHeight;
+            
             // 处理裁剪模式下的鼠标移动
-            if (this.isCroppingMode && this.isCropping) {
-                // 计算画布的缩放比例
-                const displayWidth = rect.width;
-                const displayHeight = rect.height;
-                const scaleX = this.width / displayWidth;
-                const scaleY = this.height / displayHeight;
+            if (this.isCroppingMode) {
+                const scaledMouseX = mouseX * scaleX;
+                const scaledMouseY = mouseY * scaleY;
                 
-                // 应用缩放比例计算实际坐标
-                this.cropEndX = mouseX * scaleX;
-                this.cropEndY = mouseY * scaleY;
+                if (this.isCropping) {
+                    if (this.cropHandleDragging !== null) {
+                        // 处理控制点拖拽
+                        const cropX = Math.min(this.cropStartX, this.cropEndX);
+                        const cropY = Math.min(this.cropStartY, this.cropEndY);
+                        const cropWidth = Math.abs(this.cropEndX - this.cropStartX);
+                        const cropHeight = Math.abs(this.cropEndY - this.cropStartY);
+                        
+                        switch(this.cropHandleDragging) {
+                            case 0: // 左上
+                                this.cropStartX = scaledMouseX;
+                                this.cropStartY = scaledMouseY;
+                                break;
+                            case 1: // 上中
+                                this.cropStartY = scaledMouseY;
+                                break;
+                            case 2: // 右上
+                                this.cropEndX = scaledMouseX;
+                                this.cropStartY = scaledMouseY;
+                                break;
+                            case 3: // 右中
+                                this.cropEndX = scaledMouseX;
+                                break;
+                            case 4: // 右下
+                                this.cropEndX = scaledMouseX;
+                                this.cropEndY = scaledMouseY;
+                                break;
+                            case 5: // 下中
+                                this.cropEndY = scaledMouseY;
+                                break;
+                            case 6: // 左下
+                                this.cropStartX = scaledMouseX;
+                                this.cropEndY = scaledMouseY;
+                                break;
+                            case 7: // 左中
+                                this.cropStartX = scaledMouseX;
+                                break;
+                        }
+                    } else if (this.cropBoxDragging) {
+                        // 处理整个裁剪框的拖拽
+                        const dx = scaledMouseX - this.lastMouseX;
+                        const dy = scaledMouseY - this.lastMouseY;
+                        
+                        this.cropStartX += dx;
+                        this.cropStartY += dy;
+                        this.cropEndX += dx;
+                        this.cropEndY += dy;
+                    } else {
+                        // 正常裁剪区域绘制
+                        this.cropEndX = scaledMouseX;
+                        this.cropEndY = scaledMouseY;
+                    }
+                    
+                    this.lastMouseX = scaledMouseX;
+                    this.lastMouseY = scaledMouseY;
+                    
+                } else {
+                    // 检查是否悬停在控制点上
+                    const cropX = Math.min(this.cropStartX, this.cropEndX);
+                    const cropY = Math.min(this.cropStartY, this.cropEndY);
+                    const cropWidth = Math.abs(this.cropEndX - this.cropStartX);
+                    const cropHeight = Math.abs(this.cropEndY - this.cropStartY);
+                    
+                    const handles = [
+                        { x: cropX, y: cropY, cursor: 'nw-resize' },
+                        { x: cropX + cropWidth/2, y: cropY, cursor: 'n-resize' },
+                        { x: cropX + cropWidth, y: cropY, cursor: 'ne-resize' },
+                        { x: cropX + cropWidth, y: cropY + cropHeight/2, cursor: 'e-resize' },
+                        { x: cropX + cropWidth, y: cropY + cropHeight, cursor: 'se-resize' },
+                        { x: cropX + cropWidth/2, y: cropY + cropHeight, cursor: 's-resize' },
+                        { x: cropX, y: cropY + cropHeight, cursor: 'sw-resize' },
+                        { x: cropX, y: cropY + cropHeight/2, cursor: 'w-resize' }
+                    ];
+                    
+                    let hoveredHandle = null;
+                    handles.forEach((handle, index) => {
+                        if (Math.abs(scaledMouseX - handle.x) < this.cropHandleSize &&
+                            Math.abs(scaledMouseY - handle.y) < this.cropHandleSize) {
+                            hoveredHandle = index;
+                            this.canvas.style.cursor = handle.cursor;
+                        }
+                    });
+                    
+                    if (hoveredHandle === null) {
+                        // 检查是否在裁剪框内
+                        if (scaledMouseX > cropX && scaledMouseX < cropX + cropWidth &&
+                            scaledMouseY > cropY && scaledMouseY < cropY + cropHeight) {
+                            this.canvas.style.cursor = 'move';
+                        } else {
+                            this.canvas.style.cursor = 'crosshair';
+                        }
+                    }
+                    
+                    this.cropHandleHovered = hoveredHandle;
+                }
                 
                 this.render();
                 return;
@@ -292,7 +406,8 @@ export class Canvas {
             // 如果在裁剪模式下，结束裁剪区域选择
             if (this.isCroppingMode && this.isCropping) {
                 this.isCropping = false;
-                isCroppingDrag = false;
+                this.cropHandleDragging = null;
+                this.cropBoxDragging = false;
             }
         });
 
@@ -661,19 +776,18 @@ export class Canvas {
         if (this.isCroppingMode && this.isCropping) {
             ctx.save();
             
-            // // 绘制半透明遮罩，增加透明度使其更明显
-            // ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-            // ctx.fillRect(0, 0, this.width, this.height);
-            
             // 计算裁剪区域的坐标和尺寸
             const cropX = Math.min(this.cropStartX, this.cropEndX);
             const cropY = Math.min(this.cropStartY, this.cropEndY);
             const cropWidth = Math.abs(this.cropEndX - this.cropStartX);
             const cropHeight = Math.abs(this.cropEndY - this.cropStartY);
             
+            // 绘制半透明遮罩
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, this.width, this.height);
+            
             // 清除裁剪区域的遮罩，使裁剪区域完全透明
             ctx.globalCompositeOperation = 'destination-out';
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
             ctx.fillRect(cropX, cropY, cropWidth, cropHeight);
             
             // 绘制裁剪区域的边框
@@ -681,6 +795,25 @@ export class Canvas {
             ctx.strokeStyle = '#ffffff';
             ctx.lineWidth = 2;
             ctx.strokeRect(cropX, cropY, cropWidth, cropHeight);
+            
+            // 绘制控制点
+            const handleSize = this.cropHandleSize;
+            const handles = [
+                { x: cropX, y: cropY, cursor: 'nw-resize' },
+                { x: cropX + cropWidth/2, y: cropY, cursor: 'n-resize' },
+                { x: cropX + cropWidth, y: cropY, cursor: 'ne-resize' },
+                { x: cropX + cropWidth, y: cropY + cropHeight/2, cursor: 'e-resize' },
+                { x: cropX + cropWidth, y: cropY + cropHeight, cursor: 'se-resize' },
+                { x: cropX + cropWidth/2, y: cropY + cropHeight, cursor: 's-resize' },
+                { x: cropX, y: cropY + cropHeight, cursor: 'sw-resize' },
+                { x: cropX, y: cropY + cropHeight/2, cursor: 'w-resize' }
+            ];
+            
+            handles.forEach((handle, index) => {
+                ctx.fillStyle = this.cropHandleHovered === index ? '#00ff00' : '#ffffff';
+                ctx.fillRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+                ctx.strokeRect(handle.x - handleSize/2, handle.y - handleSize/2, handleSize, handleSize);
+            });
             
             ctx.restore();
         }
@@ -1070,6 +1203,13 @@ export class Canvas {
         this.cropEndX = 0;
         this.cropEndY = 0;
         this.canvas.style.cursor = 'crosshair';
+        
+        // 添加裁剪控制点相关属性
+        this.cropHandleSize = 8; // 控制点大小
+        this.cropHandleHovered = null; // 当前悬停的控制点
+        this.cropHandleDragging = null; // 当前拖拽的控制点
+        this.cropBoxDragging = false; // 是否正在拖拽整个裁剪框
+        
         console.log("进入裁剪模式");
     }
     
@@ -1084,11 +1224,6 @@ export class Canvas {
     
     // 应用裁剪
     applyCropping() {
-        if (!this.selectedLayer) {
-            console.error("没有选中图层，无法应用裁剪");
-            return;
-        }
-        
         // 计算裁剪区域的坐标和尺寸
         const cropX = Math.min(this.cropStartX, this.cropEndX);
         const cropY = Math.min(this.cropStartY, this.cropEndY);
@@ -1102,71 +1237,89 @@ export class Canvas {
         }
         
         try {
-            // 创建临时画布
-            const tempCanvas = document.createElement('canvas');
-            const tempCtx = tempCanvas.getContext('2d');
-            tempCanvas.width = this.selectedLayer.width;
-            tempCanvas.height = this.selectedLayer.height;
+            // 保存原始图层列表
+            const originalLayers = [...this.layers];
+            // 新图层列表
+            const newLayers = [];
+            // 处理完成的图层计数
+            let processedCount = 0;
             
-            // 绘制原始图像
-            tempCtx.drawImage(
-                this.selectedLayer.image,
-                0, 0,
-                this.selectedLayer.width, this.selectedLayer.height
-            );
-            
-            // 创建裁剪遮罩
-            const maskCanvas = document.createElement('canvas');
-            const maskCtx = maskCanvas.getContext('2d');
-            maskCanvas.width = this.selectedLayer.width;
-            maskCanvas.height = this.selectedLayer.height;
-            
-            // 填充黑色背景（完全透明）
-            maskCtx.fillStyle = 'rgba(0, 0, 0, 0)';
-            maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-            
-            // 计算裁剪区域相对于图层的坐标
-            const layerCropX = cropX - this.selectedLayer.x;
-            const layerCropY = cropY - this.selectedLayer.y;
-            
-            // 在裁剪区域内填充白色（完全不透明）
-            maskCtx.fillStyle = 'rgba(255, 255, 255, 1)';
-            maskCtx.fillRect(layerCropX, layerCropY, cropWidth, cropHeight);
-            
-            // 应用裁剪遮罩
-            tempCtx.globalCompositeOperation = 'destination-in';
-            tempCtx.drawImage(maskCanvas, 0, 0);
-            
-            // 创建新图像
-            const newImage = new Image();
-            newImage.onload = () => {
-                // 创建新图层
-                const newLayer = {
-                    image: newImage,
-                    x: this.selectedLayer.x,
-                    y: this.selectedLayer.y,
-                    width: this.selectedLayer.width,
-                    height: this.selectedLayer.height,
-                    rotation: this.selectedLayer.rotation,
-                    zIndex: this.layers.length,
-                    blendMode: 'normal',
-                    opacity: 1
+            // 遍历所有图层并应用裁剪
+            originalLayers.forEach(layer => {
+                // 创建临时画布
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = layer.width;
+                tempCanvas.height = layer.height;
+                
+                // 绘制原始图像
+                tempCtx.drawImage(
+                    layer.image,
+                    0, 0,
+                    layer.width, layer.height
+                );
+                
+                // 创建裁剪遮罩
+                const maskCanvas = document.createElement('canvas');
+                const maskCtx = maskCanvas.getContext('2d');
+                maskCanvas.width = layer.width;
+                maskCanvas.height = layer.height;
+                
+                // 填充黑色背景（完全透明）
+                maskCtx.fillStyle = 'rgba(0, 0, 0, 0)';
+                maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+                
+                // 计算裁剪区域相对于图层的坐标
+                const layerCropX = cropX - layer.x;
+                const layerCropY = cropY - layer.y;
+                
+                // 在裁剪区域内填充白色（完全不透明）
+                maskCtx.fillStyle = 'rgba(255, 255, 255, 1)';
+                maskCtx.fillRect(layerCropX, layerCropY, cropWidth, cropHeight);
+                
+                // 应用裁剪遮罩
+                tempCtx.globalCompositeOperation = 'destination-in';
+                tempCtx.drawImage(maskCanvas, 0, 0);
+                
+                // 创建新图像
+                const newImage = new Image();
+                newImage.onload = () => {
+                    // 创建新图层
+                    const newLayer = {
+                        image: newImage,
+                        x: layer.x,
+                        y: layer.y,
+                        width: layer.width,
+                        height: layer.height,
+                        rotation: layer.rotation,
+                        zIndex: layer.zIndex,
+                        blendMode: layer.blendMode || 'normal',
+                        opacity: layer.opacity || 1
+                    };
+                    
+                    // 添加到新图层列表
+                    newLayers.push(newLayer);
+                    
+                    // 增加处理完成计数
+                    processedCount++;
+                    
+                    // 当所有图层都处理完成时
+                    if (processedCount === originalLayers.length) {
+                        // 替换图层列表
+                        this.layers = newLayers;
+                        // 重置选择状态
+                        this.selectedLayer = null;
+                        this.selectedLayers = [];
+                        // 退出裁剪模式并重新渲染
+                        this.exitCroppingMode();
+                        this.render();
+                        console.log("所有图层裁剪应用成功");
+                    }
                 };
                 
-                // 添加新图层并选中
-                this.layers.push(newLayer);
-                this.selectedLayer = newLayer;
-                this.selectedLayers = [newLayer];
-                
-                // 退出裁剪模式并重新渲染
-                this.exitCroppingMode();
-                this.render();
-                
-                console.log("裁剪应用成功");
-            };
-            
-            // 转换为PNG并保持透明度
-            newImage.src = tempCanvas.toDataURL('image/png');
+                // 转换为PNG并保持透明度
+                newImage.src = tempCanvas.toDataURL('image/png');
+            });
             
         } catch (error) {
             console.error("应用裁剪时出错:", error);
