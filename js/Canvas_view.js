@@ -206,7 +206,9 @@ async function createCanvasWidget(node, widget, app) {
                                 console.log("Found image data, importing...");
                                 await canvas.importImage({
                                     image: result.data.image,
-                                    mask: result.data.mask
+                                    mask: result.data.mask,
+                                    canvas_width: result.data.canvas_width,
+                                    canvas_height: result.data.canvas_height
                                 });
                                 await canvas.saveToServer(widget.value);
                                 app.graph.runStep();
@@ -223,88 +225,22 @@ async function createCanvasWidget(node, widget, app) {
                     }
                 }
             }),
-            $el("button.painter-button", {
-                textContent: "Canvas Size",
-                onclick: () => {
-                    const dialog = $el("div.painter-dialog", {
-                        style: {
-                            position: 'fixed',
-                            left: '50%',
-                            top: '50%',
-                            transform: 'translate(-50%, -50%)',
-                            zIndex: '1000'
-                        }
-                    }, [
-                        $el("div", {
-                            style: {
-                                color: "white",
-                                marginBottom: "10px"
-                            }
-                        }, [
-                            $el("label", {
-                                style: {
-                                    marginRight: "5px"
-                                }
-                            }, [
-                                $el("span", {}, ["Width: "])
-                            ]),
-                            $el("input", {
-                                type: "number",
-                                id: "canvas-width",
-                                value: canvas.width,
-                                min: "1",
-                                max: "4096"
-                            })
-                        ]),
-                        $el("div", {
-                            style: {
-                                color: "white",
-                                marginBottom: "10px"
-                            }
-                        }, [
-                            $el("label", {
-                                style: {
-                                    marginRight: "5px"
-                                }
-                            }, [
-                                $el("span", {}, ["Height: "])
-                            ]),
-                            $el("input", {
-                                type: "number",
-                                id: "canvas-height",
-                                value: canvas.height,
-                                min: "1",
-                                max: "4096"
-                            })
-                        ]),
-                        $el("div", {
-                            style: {
-                                textAlign: "right"
-                            }
-                        }, [
-                            $el("button", {
-                                id: "cancel-size",
-                                textContent: "Cancel"
-                            }),
-                            $el("button", {
-                                id: "confirm-size",
-                                textContent: "OK"
-                            })
-                        ])
-                    ]);
-                    document.body.appendChild(dialog);
-
-                    document.getElementById('confirm-size').onclick = () => {
-                        const width = parseInt(document.getElementById('canvas-width').value) || canvas.width;
-                        const height = parseInt(document.getElementById('canvas-height').value) || canvas.height;
-                        canvas.updateCanvasSize(width, height);
-                        document.body.removeChild(dialog);
-                    };
-
-                    document.getElementById('cancel-size').onclick = () => {
-                        document.body.removeChild(dialog);
-                    };
-                }
+            $el("div.canvas-size-display", {
+                style: {
+                    background: "linear-gradient(to bottom, #3a3a3a, #2a2a2a)",
+                    border: "1px solid #1a1a1a",
+                    borderRadius: "4px",
+                    color: "#ffffff",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    margin: "2px",
+                    textAlign: "center",
+                    minWidth: "120px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center"
+                },
+                textContent: `画布尺寸: ${canvas.width}×${canvas.height}`
             }),
             $el("button.painter-button", {
                 textContent: "Remove Layer",
@@ -553,6 +489,29 @@ async function createCanvasWidget(node, widget, app) {
             height: "100%"
         }
     }, [controlPanel, canvasContainer]);
+    
+    // 将画布尺寸显示元素与Canvas类关联
+    canvas.canvasSizeDisplay = controlPanel.querySelector('.canvas-size-display');
+    
+    // 监听画布尺寸widget的变化
+    const canvasWidthWidget = node.widgets.find(w => w.name === "canvas_width");
+    const canvasHeightWidget = node.widgets.find(w => w.name === "canvas_height");
+    
+    if (canvasWidthWidget && canvasHeightWidget) {
+        // 更新尺寸显示
+        canvas.canvasSizeDisplay.textContent = `画布尺寸: ${canvasWidthWidget.value}×${canvasHeightWidget.value}`;
+        
+        // 添加监听器
+        canvasWidthWidget.callback = function(value) {
+            canvas.updateCanvasSize(value, canvas.height);
+            canvas.canvasSizeDisplay.textContent = `画布尺寸: ${value}×${canvas.height}`;
+        };
+        
+        canvasHeightWidget.callback = function(value) {
+            canvas.updateCanvasSize(canvas.width, value);
+            canvas.canvasSizeDisplay.textContent = `画布尺寸: ${canvas.width}×${value}`;
+        };
+    }
 
     // 将主容器添加到节点
     const mainWidget = node.addDOMWidget("mainContainer", "widget", mainContainer);
@@ -886,4 +845,4 @@ async function handleImportInput(data) {
         const imageData = data.image;
         await importImage(imageData);
     }
-} 
+}

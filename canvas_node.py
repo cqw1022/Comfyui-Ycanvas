@@ -129,6 +129,8 @@ class CanvasNode:
         return {
             "required": {
                 "canvas_image": ("STRING", {"default": "canvas_image.png"}),
+                "canvas_width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8}),
+                "canvas_height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8}),
                 "trigger": ("INT", {"default": 0, "min": 0, "max": 99999999, "step": 1, "hidden": True}),
                 "output_switch": ("BOOLEAN", {"default": True}),
                 "cache_enabled": ("BOOLEAN", {"default": True, "label": "Enable Cache"})
@@ -195,7 +197,7 @@ class CanvasNode:
             print(f"Error in add_mask_to_canvas: {str(e)}")
             return None
 
-    def process_canvas_image(self, canvas_image, trigger, output_switch, cache_enabled, input_image=None, input_mask=None):
+    def process_canvas_image(self, canvas_image, canvas_width, canvas_height, trigger, output_switch, cache_enabled, input_image=None, input_mask=None):
         try:
             current_execution = self.get_execution_id()
             print(f"Processing canvas image, execution ID: {current_execution}")
@@ -275,8 +277,8 @@ class CanvasNode:
                 #     image = rgb * alpha + (1 - alpha) * 0.5
                 processed_image = torch.from_numpy(image)[None,]
             except Exception as e:
-                # 如果读取失败，创建白色画布
-                processed_image = torch.ones((1, 512, 512, 3), dtype=torch.float32)
+                # 如果读取失败，创建白色画布，使用指定的宽度和高度
+                processed_image = torch.ones((1, canvas_height, canvas_width, 3), dtype=torch.float32)
             
             try:
                 # 尝试读取遮罩图像
@@ -348,11 +350,29 @@ class CanvasNode:
                 print(f"Cache content: {cache_data}")
                 print(f"Image in cache: {cache_data['image'] is not None}")
                 
+                # 获取节点实例以获取当前的宽度和高度
+                node_instance = None
+                for node in app.graph.nodes:
+                    if node.id == node_id:
+                        node_instance = node
+                        break
+                
+                canvas_width = 512
+                canvas_height = 512
+                if node_instance and hasattr(node_instance, 'widgets'):
+                    for widget in node_instance.widgets:
+                        if widget.name == 'canvas_width':
+                            canvas_width = widget.value
+                        elif widget.name == 'canvas_height':
+                            canvas_height = widget.value
+                
                 response_data = {
                     'success': True,
                     'data': {
                         'image': None,
-                        'mask': None
+                        'mask': None,
+                        'canvas_width': canvas_width,
+                        'canvas_height': canvas_height
                     }
                 }
                 

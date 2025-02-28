@@ -4,8 +4,32 @@ export class Canvas {
         this.widget = widget;
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
-        this.width = 512;
-        this.height = 512;
+        
+        // 从节点的widget中获取画布尺寸
+        const canvasWidthWidget = node.widgets.find(w => w.name === "canvas_width");
+        const canvasHeightWidget = node.widgets.find(w => w.name === "canvas_height");
+        
+        // 初始化尺寸，但稍后会再次检查以确保获取最新值
+        this.width = canvasWidthWidget ? canvasWidthWidget.value : 512;
+        this.height = canvasHeightWidget ? canvasHeightWidget.value : 512;
+
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+        console.log(`Canvas initial dimensions: ${this.width}×${this.height}`);
+        
+        // 添加延迟检查以获取最新的widget值
+        setTimeout(() => {
+            if (canvasWidthWidget && canvasHeightWidget) {
+                const updatedWidth = canvasWidthWidget.value;
+                const updatedHeight = canvasHeightWidget.value;
+                if (updatedWidth !== this.width || updatedHeight !== this.height) {
+                    console.log(`Updating canvas size after delay: ${updatedWidth}×${updatedHeight}`);
+                    this.updateCanvasSize(updatedWidth, updatedHeight);
+                }
+            }
+        }, 100); // 短暂延迟以确保widget值已更新
+
+
         this.layers = [];
         this.selectedLayer = null;
         this.isRotating = false;
@@ -442,15 +466,22 @@ export class Canvas {
         
         // 调整所有图层的位置和大小
         this.layers.forEach(layer => {
-            const scale = Math.min(
-                width / layer.image.width * 0.8,
-                height / layer.image.height * 0.8
-            );
-            layer.width = layer.image.width * scale;
-            layer.height = layer.image.height * scale;
-            layer.x = (width - layer.width) / 2;
-            layer.y = (height - layer.height) / 2;
+            if (layer.image) {
+                const scale = Math.min(
+                    width / layer.image.width * 0.8,
+                    height / layer.image.height * 0.8
+                );
+                layer.width = layer.image.width * scale;
+                layer.height = layer.image.height * scale;
+                layer.x = (width - layer.width) / 2;
+                layer.y = (height - layer.height) / 2;
+            }
         });
+        
+        // 更新画布尺寸显示
+        if (this.node && this.canvasSizeDisplay) {
+            this.canvasSizeDisplay.textContent = `画布尺寸: ${width}×${height}`;
+        }
         
         this.render();
     }
@@ -1398,7 +1429,33 @@ export class Canvas {
             const img = await this.loadImageFromCache(cacheData.image);
             const mask = cacheData.mask ? await this.loadImageFromCache(cacheData.mask) : null;
             
-            // 计算缩放比例
+            // 首先检查并更新画布尺寸
+            if (cacheData.canvas_width && cacheData.canvas_height) {
+                console.log("Updating canvas size from backend:", cacheData.canvas_width, cacheData.canvas_height);
+                
+                // 获取节点的widget以更新其值
+                const canvasWidthWidget = this.node.widgets.find(w => w.name === "canvas_width");
+                const canvasHeightWidget = this.node.widgets.find(w => w.name === "canvas_height");
+                
+                if (canvasWidthWidget) canvasWidthWidget.value = cacheData.canvas_width;
+                if (canvasHeightWidget) canvasHeightWidget.value = cacheData.canvas_height;
+                
+                // 更新画布尺寸
+                this.updateCanvasSize(cacheData.canvas_width, cacheData.canvas_height);
+            } else {
+                // 如果后端没有提供尺寸，再次检查widget的最新值
+                const canvasWidthWidget = this.node.widgets.find(w => w.name === "canvas_width");
+                const canvasHeightWidget = this.node.widgets.find(w => w.name === "canvas_height");
+                
+                if (canvasWidthWidget && canvasHeightWidget) {
+                    if (canvasWidthWidget.value !== this.width || canvasHeightWidget.value !== this.height) {
+                        console.log(`Updating canvas size from widgets: ${canvasWidthWidget.value}×${canvasHeightWidget.value}`);
+                        this.updateCanvasSize(canvasWidthWidget.value, canvasHeightWidget.value);
+                    }
+                }
+            }
+            
+            // 计算缩放比例 - 在更新画布尺寸后计算
             const scale = Math.min(
                 this.width / img.width * 0.8,
                 this.height / img.height * 0.8
@@ -1431,7 +1488,7 @@ export class Canvas {
                 tempCtx.putImageData(imageData, 0, 0);
             }
             
-            // 创��最终图像
+            // 创建最终图像
             const finalImage = new Image();
             await new Promise((resolve) => {
                 finalImage.onload = resolve;
@@ -1452,6 +1509,8 @@ export class Canvas {
             this.layers.push(layer);
             this.selectedLayer = layer;
             this.render();
+            
+            console.log(`Image imported successfully with canvas size: ${this.width}×${this.height}`);
             
         } catch (error) {
             console.error('Error importing image:', error);
@@ -1619,4 +1678,4 @@ export class Canvas {
         this.selectedBlendMode = null;
         this.isAdjustingOpacity = false;
     }
-} 
+}
