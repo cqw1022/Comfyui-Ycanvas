@@ -291,6 +291,59 @@ async function createCanvasWidget(node, widget, app) {
                     canvas.mirrorVertical();
                 }
             }),
+            // 添加裁剪按钮
+            $el("button.painter-button", {
+                textContent: "裁剪模式",
+                onclick: () => {
+                    if (!canvas.selectedLayer) {
+                        alert("请先选择一个图层");
+                        return;
+                    }
+                    canvas.enterCroppingMode();
+                    // 动态添加应用裁剪按钮
+                    const applyButton = document.createElement('button');
+                    applyButton.className = 'painter-button primary';
+                    applyButton.textContent = '应用裁剪';
+                    applyButton.id = 'apply-crop-button';
+                    applyButton.onclick = async () => {
+                        canvas.applyCropping();
+                        // 应用裁剪后保存并更新
+                        await canvas.saveToServer(widget.value);
+                        app.graph.runStep();
+                        // 移除应用裁剪按钮
+                        const existingButton = document.getElementById('apply-crop-button');
+                        if (existingButton) {
+                            existingButton.remove();
+                        }
+                        // 移除取消裁剪按钮
+                        const cancelButton = document.getElementById('cancel-crop-button');
+                        if (cancelButton) {
+                            cancelButton.remove();
+                        }
+                    };
+                    
+                    // 添加取消裁剪按钮
+                    const cancelButton = document.createElement('button');
+                    cancelButton.className = 'painter-button';
+                    cancelButton.textContent = '取消裁剪';
+                    cancelButton.id = 'cancel-crop-button';
+                    cancelButton.onclick = () => {
+                        canvas.exitCroppingMode();
+                        // 移除应用裁剪按钮
+                        const existingButton = document.getElementById('apply-crop-button');
+                        if (existingButton) {
+                            existingButton.remove();
+                        }
+                        // 移除取消裁剪按钮
+                        cancelButton.remove();
+                    };
+                    
+                    // 将按钮添加到控制面板
+                    const controls = controlPanel.querySelector('.controls');
+                    controls.appendChild(applyButton);
+                    controls.appendChild(cancelButton);
+                }
+            }),
             // 在控制面板中添加抠图按钮
             $el("button.painter-button", {
                 textContent: "Matting",
