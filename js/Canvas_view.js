@@ -153,18 +153,18 @@ async function createCanvasWidget(node, widget, app) {
                             const img = new Image();
                             img.onload = async () => {
                                 // 计算适当的缩放比例
-                                const scale = Math.min(
-                                    canvas.width / img.width * 0.8,
-                                    canvas.height / img.height * 0.8
-                                );
+                                // const scale = Math.min(
+                                //     canvas.width / img.width * 0.8,
+                                //     canvas.height / img.height * 0.8
+                                // );
                                 
                                 // 创建新图层
                                 const layer = {
                                     image: img,
-                                    x: (canvas.width - img.width * scale) / 2,
-                                    y: (canvas.height - img.height * scale) / 2,
-                                    width: img.width * scale,
-                                    height: img.height * scale,
+                                    x: (canvas.width - img.width) / 2,
+                                    y: (canvas.height - img.height) / 2,
+                                    width: img.width,
+                                    height: img.height,
                                     rotation: 0,
                                     zIndex: canvas.layers.length
                                 };
