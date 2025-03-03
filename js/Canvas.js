@@ -99,6 +99,10 @@ export class Canvas {
         this.canvas.height = this.height;
         this.canvas.style.border = '1px solid black';
         this.canvas.style.maxWidth = '100%';
+        this.canvas.style.maxHeight = '100%';
+        this.canvas.style.width = '100%';
+        this.canvas.style.height = '100%';
+        this.canvas.style.objectFit = 'contain';
         this.canvas.style.backgroundColor = '#606060';
     }
 
