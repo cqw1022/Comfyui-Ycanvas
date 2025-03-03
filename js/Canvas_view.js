@@ -610,9 +610,138 @@ async function createCanvasWidget(node, widget, app) {
     };
 }
 
-async function diyCanvasWidget(node, widget, app) {
-    
-    
+async function diyCanvasWidget(node, canvas, widget, app, controlPanel) {
+    // 添加保存配置按钮
+    const saveConfigButton = $el("button.painter-button.primary", {
+        textContent: "保存配置",
+        onclick: async () => {
+            try {
+                // 初始化文本元素数组
+                const textElements = [];
+                let backgroundImage = null;
+                let customImage = null;
+                
+                // 检查是否有选中的图层
+                if (!canvas.selectedLayer || canvas.selectedLayer.type === 'text') {
+                    alert('请先选择一个图片作为自定义图片');
+                    return;
+                }
+
+                // 创建临时画布用于合并背景图
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                
+                // 处理图层
+                canvas.layers.forEach(layer => {
+                    if (layer.type === 'text') {
+                        // 添加文本图层
+                        textElements.push({
+                            text: layer.text || "文本",
+                            x: Math.round(layer.x),
+                            y: Math.round(layer.y),
+                            font: "msyh.ttc", // 默认字体
+                            font_dir: "C:\\Windows\\Fonts",
+                            size: layer.fontSize || 24,
+                            color: layer.fontColor || "#000000",
+                            align: "center" // 默认居中
+                        });
+                    } else if (layer === canvas.selectedLayer) {
+                        // 选中的图层作为自定义图片
+                        customImage = {
+                            name: "主图",
+                            description: "中心主要图片",
+                            x: Math.round(layer.x),
+                            y: Math.round(layer.y),
+                            width: Math.round(layer.width),
+                            height: Math.round(layer.height),
+                            align: "center",
+                            max_width: Math.round(layer.width),
+                            max_height: Math.round(layer.height),
+                            opacity: layer.opacity || 1.0
+                        };
+                    } else {
+                        // 其他图片图层绘制到临时画布上
+                        tempCtx.save();
+                        tempCtx.globalAlpha = layer.opacity || 1.0;
+                        tempCtx.translate(layer.x + layer.width/2, layer.y + layer.height/2);
+                        tempCtx.rotate(layer.rotation * Math.PI / 180);
+                        tempCtx.drawImage(
+                            layer.image,
+                            -layer.width/2,
+                            -layer.height/2,
+                            layer.width,
+                            layer.height
+                        );
+                        tempCtx.restore();
+                    }
+                });
+                
+                // 创建背景图配置
+                backgroundImage = {
+                    description: "整体背景图片",
+                    x: 0,
+                    y: 0,
+                    width: canvas.width,
+                    height: canvas.height,
+                    align: "center",
+                    max_width: canvas.width,
+                    max_height: canvas.height,
+                    opacity: 1.0
+                };
+                
+                // 创建新格式的配置
+                const config = {
+                    canvas: {
+                        width: canvas.width,
+                        height: canvas.height,
+                        background_color: canvas.canvas.style.backgroundColor || "#FFFFFF00"
+                    },
+                    text_elements: textElements,
+                    background_image: backgroundImage,
+                    custom_image: customImage
+                };
+
+                // 将背景图片转换为base64
+                const backgroundImageData = tempCanvas.toDataURL('image/png');
+
+                // 准备发送到服务器的数据
+                const saveData = {
+                    config_path: node.widgets.find(w => w.name === "config_path").value,
+                    config_data: config,
+                    background_image: backgroundImageData
+                };
+
+                // 调用save_config_file接口
+                const response = await fetch('/save_config_file', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(saveData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('配置和背景图片已成功保存到服务器');
+                } else {
+                    throw new Error(result.error || '保存失败');
+                }
+
+                alert('配置已保存');
+            } catch (error) {
+                console.error('保存配置失败:', error);
+                alert('保存配置失败: ' + error.message);
+            }
+        }
+    });
+
+    // 获取控制面板并添加按钮
+    const controls = controlPanel.querySelector('.controls.painter-controls');
+    if (controls) {
+        controls.appendChild(saveConfigButton);
+    }
 }
 // 修改缓存管理
 const ImageCache = {
@@ -655,14 +784,14 @@ app.registerExtension({
                 
                 return r;
             };
-        } if (nodeType.comfyClass === "DiyCanvasNode") {
+        } else if (nodeType.comfyClass === "DiyCanvasNode") {
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             nodeType.prototype.onNodeCreated = async function() {
                 const r = onNodeCreated?.apply(this, arguments);
                 
                 const widget = this.widgets.find(w => w.name === "canvas_image");
-                await createCanvasWidget(this, widget, app);
-                await diyCanvasWidget(this, widget, app);
+                const result = await createCanvasWidget(this, widget, app);
+                await diyCanvasWidget(this, result.canvas, widget, app, result.panel);
                 return r;
             };
         }

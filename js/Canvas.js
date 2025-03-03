@@ -1037,13 +1037,21 @@ export class Canvas {
                 
                 tempCtx.translate(layer.x + layer.width/2, layer.y + layer.height/2);
                 tempCtx.rotate(layer.rotation * Math.PI / 180);
-                tempCtx.drawImage(
-                    layer.image,
-                    -layer.width/2,
-                    -layer.height/2,
-                    layer.width,
-                    layer.height
-                );
+                
+                // 根据图层类型进行不同的渲染
+                if (layer.type === 'text') {
+                    // 如果是文字图层，使用TextLayer的渲染方法
+                    this.textLayerManager.renderTextLayer(tempCtx, layer);
+                } else if (layer.image) {
+                    // 如果是图像图层，使用drawImage方法
+                    tempCtx.drawImage(
+                        layer.image,
+                        -layer.width/2,
+                        -layer.height/2,
+                        layer.width,
+                        layer.height
+                    );
+                }
                 tempCtx.restore();
                 
                 // 处理遮罩
@@ -1055,8 +1063,43 @@ export class Canvas {
                 // 如果图层有遮罩，使用它
                 if (layer.mask) {
                     maskCtx.drawImage(layer.mask, -layer.width/2, -layer.height/2, layer.width, layer.height);
-                } else {
-                    // 如果没有遮罩，使用图层的alpha通道和透明度值
+                } else if (layer.type === 'text') {
+                    // 文字图层的遮罩处理
+                    const textCanvas = document.createElement('canvas');
+                    textCanvas.width = layer.width;
+                    textCanvas.height = layer.height;
+                    const textCtx = textCanvas.getContext('2d');
+                    
+                    // 在临时画布上渲染文字
+                    textCtx.translate(layer.width/2, layer.height/2);
+                    this.textLayerManager.renderTextLayer(textCtx, {
+                        ...layer,
+                        x: 0,
+                        y: 0,
+                        rotation: 0
+                    });
+                    
+                    // 获取文字的alpha通道
+                    const textData = textCtx.getImageData(0, 0, layer.width, layer.height);
+                    
+                    // 创建遮罩画布
+                    const alphaCanvas = document.createElement('canvas');
+                    alphaCanvas.width = layer.width;
+                    alphaCanvas.height = layer.height;
+                    const alphaCtx = alphaCanvas.getContext('2d');
+                    const alphaData = alphaCtx.createImageData(layer.width, layer.height);
+                    
+                    // 提取alpha通道并应用图层透明度
+                    for (let i = 0; i < textData.data.length; i += 4) {
+                        const alpha = textData.data[i + 3] * (layer.opacity !== undefined ? layer.opacity : 1);
+                        alphaData.data[i] = alphaData.data[i + 1] = alphaData.data[i + 2] = alpha;
+                        alphaData.data[i + 3] = 255;
+                    }
+                    
+                    alphaCtx.putImageData(alphaData, 0, 0);
+                    maskCtx.drawImage(alphaCanvas, -layer.width/2, -layer.height/2, layer.width, layer.height);
+                } else if (layer.image) {
+                    // 图像图层的遮罩处理
                     const layerCanvas = document.createElement('canvas');
                     layerCanvas.width = layer.width;
                     layerCanvas.height = layer.height;
@@ -1180,8 +1223,8 @@ export class Canvas {
         const scaleY = this.height / displayHeight;
         
         // 计算鼠标在画布上的实际位置
-        const canvasX = (x) * scaleX;
-        const canvasY = (y) * scaleY;
+        const canvasX = x * scaleX;
+        const canvasY = y * scaleY;
         
         // 从上层到下层遍历所有图层
         for (let i = this.layers.length - 1; i >= 0; i--) {
@@ -1204,44 +1247,56 @@ export class Canvas {
                 rotatedY >= layer.y && 
                 rotatedY <= layer.y + layer.height) {
                 
-                // 创建临时画布来检查透明度
-                const tempCanvas = document.createElement('canvas');
-                const tempCtx = tempCanvas.getContext('2d');
-                tempCanvas.width = layer.width;
-                tempCanvas.height = layer.height;
+                // 如果是文字图层，直接返回
+                if (layer.type === 'text') {
+                    return {
+                        layer: layer,
+                        localX: rotatedX - layer.x,
+                        localY: rotatedY - layer.y
+                    };
+                }
                 
-                // 绘制图层到临时画布
-                tempCtx.save();
-                tempCtx.clearRect(0, 0, layer.width, layer.height);
-                tempCtx.drawImage(
-                    layer.image,
-                    0,
-                    0,
-                    layer.width,
-                    layer.height
-                );
-                tempCtx.restore();
-                
-                // 获取点击位置的像素数据
-                const localX = rotatedX - layer.x;
-                const localY = rotatedY - layer.y;
-                
-                try {
-                    const pixel = tempCtx.getImageData(
-                        Math.round(localX), 
-                        Math.round(localY), 
-                        1, 1
-                    ).data;
-                    // 检查像素的alpha值
-                    if (pixel[3] > 10) {
-                        return {
-                            layer: layer,
-                            localX: localX,
-                            localY: localY
-                        };
+                // 对于图片图层，检查透明度
+                if (layer.image) {
+                    // 创建临时画布来检查透明度
+                    const tempCanvas = document.createElement('canvas');
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCanvas.width = layer.width;
+                    tempCanvas.height = layer.height;
+                    
+                    // 绘制图层到临时画布
+                    tempCtx.save();
+                    tempCtx.clearRect(0, 0, layer.width, layer.height);
+                    tempCtx.drawImage(
+                        layer.image,
+                        0,
+                        0,
+                        layer.width,
+                        layer.height
+                    );
+                    tempCtx.restore();
+                    
+                    // 获取点击位置的像素数据
+                    const localX = rotatedX - layer.x;
+                    const localY = rotatedY - layer.y;
+                    
+                    try {
+                        const pixel = tempCtx.getImageData(
+                            Math.round(localX), 
+                            Math.round(localY), 
+                            1, 1
+                        ).data;
+                        // 检查像素的alpha值
+                        if (pixel[3] > 10) {
+                            return {
+                                layer: layer,
+                                localX: localX,
+                                localY: localY
+                            };
+                        }
+                    } catch(e) {
+                        console.error("Error checking pixel transparency:", e);
                     }
-                } catch(e) {
-                    console.error("Error checking pixel transparency:", e);
                 }
             }
         }

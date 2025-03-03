@@ -1,15 +1,16 @@
 from .canvas_node import CanvasNode
+from .diy_canvas_node import DiyCanvasNode
 
 # 设置路由
 CanvasNode.setup_routes()
 
 NODE_CLASS_MAPPINGS = {
     "CanvasNode": CanvasNode,
-    "DiyCanvasNode": CanvasNode
+    "DiyCanvasNode": DiyCanvasNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "CanvasNode": "Canvas Node"
+    "CanvasNode": "Canvas Node",
     "DiyCanvasNode": "DiyCanvasNode"
 }
 
