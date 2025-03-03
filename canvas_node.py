@@ -129,8 +129,8 @@ class CanvasNode:
         return {
             "required": {
                 "canvas_image": ("STRING", {"default": "canvas_image.png"}),
-                "canvas_width": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8}),
-                "canvas_height": ("INT", {"default": 512, "min": 64, "max": 4096, "step": 8}),
+                "canvas_width": ("INT", {"default": 512, "min": 64, "max": 8192, "step": 8}),
+                "canvas_height": ("INT", {"default": 512, "min": 64, "max": 8192, "step": 8}),
                 "trigger": ("INT", {"default": 0, "min": 0, "max": 99999999, "step": 1, "hidden": True}),
                 "output_switch": ("BOOLEAN", {"default": True}),
                 "cache_enabled": ("BOOLEAN", {"default": True, "label": "Enable Cache"})
