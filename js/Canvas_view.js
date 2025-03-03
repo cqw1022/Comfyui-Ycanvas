@@ -292,6 +292,13 @@ async function createCanvasWidget(node, widget, app) {
                     canvas.mirrorVertical();
                 }
             }),
+            // 添加文字按钮
+            $el("button.painter-button", {
+                textContent: "添加文字",
+                onclick: () => {
+                    canvas.addTextLayer();
+                }
+            }),
             // 添加裁剪按钮
             $el("button.painter-button", {
                 textContent: "裁剪模式",
@@ -602,6 +609,11 @@ async function createCanvasWidget(node, widget, app) {
         panel: controlPanel
     };
 }
+
+async function diyCanvasWidget(node, widget, app) {
+    
+    
+}
 // 修改缓存管理
 const ImageCache = {
     cache: new Map(),
@@ -643,6 +655,16 @@ app.registerExtension({
                 
                 return r;
             };
+        } if (nodeType.comfyClass === "DiyCanvasNode") {
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = async function() {
+                const r = onNodeCreated?.apply(this, arguments);
+                
+                const widget = this.widgets.find(w => w.name === "canvas_image");
+                await createCanvasWidget(this, widget, app);
+                await diyCanvasWidget(this, widget, app);
+                return r;
+            };
         }
     }
-}); 
+});

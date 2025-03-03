@@ -1,3 +1,5 @@
+import { TextLayer } from './TextLayer.js';
+
 export class Canvas {
     constructor(node, widget) {
         this.node = node;
@@ -37,6 +39,9 @@ export class Canvas {
         this.rotationCenter = { x: 0, y: 0 };
         this.selectedLayers = [];
         this.isCtrlPressed = false;
+        
+        // 初始化文字图层管理器
+        this.textLayerManager = new TextLayer();
         
         // 添加裁剪相关属性
         this.isCroppingMode = false;
@@ -121,6 +126,36 @@ export class Canvas {
         let originalHeight = 0;
         let isCroppingDrag = false;
         
+        // 添加双击事件监听器
+        this.canvas.addEventListener('dblclick', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 检查是否点击在任何图层上
+            const result = this.getLayerAtPosition(mouseX, mouseY);
+            if (result && result.layer.type === 'text') {
+                // 如果是文字图层，进入编辑模式
+                this.editTextLayer(result.layer);
+            }
+        });
+        
+        // 添加右键菜单事件
+        this.canvas.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            
+            const rect = this.canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 检查是否点击在任何图层上
+            const result = this.getLayerAtPosition(mouseX, mouseY);
+            if (result && result.layer.type === 'text') {
+                // 显示文字样式编辑器
+                this.editTextStyle(result.layer);
+            }
+        });
+        
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Control') {
                 this.isCtrlPressed = true;
@@ -191,9 +226,12 @@ export class Canvas {
             }
 
             if (currentTime - lastClickTime < 300) {
-                this.selectedLayers = [];
-                this.selectedLayer = null;
-                this.render();
+                const result = this.getLayerAtPosition(mouseX, mouseY);
+                if (!result) {
+                    this.selectedLayers = [];
+                    this.selectedLayer = null;
+                    this.render();
+                }
                 return;
             }
             lastClickTime = currentTime;
@@ -604,6 +642,68 @@ export class Canvas {
         }
     }
 
+    addTextLayer() {
+        try {
+            const textLayer = this.textLayerManager.createTextLayer({
+                x: Math.max(0, (this.width - 200) / 2),
+                y: Math.max(0, (this.height - 100) / 2)
+            });
+            
+            this.layers.push(textLayer);
+            this.selectedLayer = textLayer;
+            this.render();
+            
+            // 立即进入编辑模式
+            this.editTextLayer(textLayer);
+        } catch (error) {
+            console.error("Error adding text layer:", error);
+        }
+    }
+
+    editTextLayer(layer) {
+        if (layer.type !== 'text') return;
+        
+        layer.isEditing = true;
+        const editor = this.textLayerManager.createTextEditor(
+            layer,
+            this.canvas.parentElement,
+            () => {
+                // 更新图层尺寸
+                const size = this.textLayerManager.calculateTextSize(
+                    layer.text,
+                    layer.style,
+                    this.ctx
+                );
+                layer.width = size.width;
+                layer.height = size.height;
+                this.render();
+            }
+        );
+    }
+
+    editTextStyle(layer) {
+        if (layer.type !== 'text') return;
+        
+        const editor = this.textLayerManager.createStyleEditor(
+            layer,
+            () => this.render()
+        );
+        
+        // 将编辑器添加到画布容器中
+        const container = this.canvas.parentElement;
+        const rect = container.getBoundingClientRect();
+        editor.style.left = `${rect.right - 300}px`;
+        editor.style.top = `${rect.top + 10}px`;
+        container.appendChild(editor);
+    }
+
+    handleDoubleClick(e) {
+        if (!this.selectedLayer) return;
+        
+        if (this.selectedLayer.type === 'text') {
+            this.editTextLayer(this.selectedLayer);
+        }
+    }
     removeLayer(index) {
         if (index >= 0 && index < this.layers.length) {
             this.layers.splice(index, 1);
@@ -686,6 +786,8 @@ export class Canvas {
                 this.renderAnimationFrame = null;
             }
         });
+
+
     }
 
     actualRender() {
@@ -705,9 +807,24 @@ export class Canvas {
         const sortedLayers = [...this.layers].sort((a, b) => a.zIndex - b.zIndex);
         
         sortedLayers.forEach(layer => {
-            if (!layer.image) return;
-            
             ctx.save();
+            
+            // 如果是文字图层，使用文字图层管理器渲染
+            if (layer.type === 'text') {
+                this.textLayerManager.renderTextLayer(ctx, layer);
+                // 如果是选中的图层，绘制选择框
+                if (this.selectedLayers.includes(layer)) {
+                    this.drawSelectionFrame(layer);
+                }
+                ctx.restore();
+                return;
+            }
+            
+            // 如果不是图片图层，跳过
+            if (!layer.image) {
+                ctx.restore();
+                return;
+            }
             
             // 应用混合模式和不透明度
             ctx.globalCompositeOperation = layer.blendMode || 'normal';

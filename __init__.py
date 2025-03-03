@@ -4,11 +4,13 @@ from .canvas_node import CanvasNode
 CanvasNode.setup_routes()
 
 NODE_CLASS_MAPPINGS = {
-    "CanvasNode": CanvasNode
+    "CanvasNode": CanvasNode,
+    "DiyCanvasNode": CanvasNode
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "CanvasNode": "Canvas Node"
+    "DiyCanvasNode": "DiyCanvasNode"
 }
 
 WEB_DIRECTORY = "./js"
