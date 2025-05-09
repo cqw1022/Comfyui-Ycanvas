@@ -940,6 +940,24 @@ export class Canvas {
         }
         
         this.ctx.drawImage(this.offscreenCanvas, 0, 0);
+        
+        // 在主画布上绘制坐标标识
+        const step = 100; // 每100像素标一次
+        this.ctx.save();
+        this.ctx.font = "34px Arial";
+        this.ctx.fillStyle = "#f00";
+        this.ctx.textAlign = "center";
+        this.ctx.textBaseline = "middle";
+        // 横向x坐标，放在每个格子的中间
+        for (let x = 0; x <= this.width; x += step) {
+            this.ctx.fillText(x.toString(), x, this.width / 2);
+        }
+        // 纵向y坐标，放在每个格子的中间
+        this.ctx.textAlign = "left";
+        for (let y = 0; y <= this.height; y += step) {
+            this.ctx.fillText(y.toString(), this.height / 2, y);
+        }
+        this.ctx.restore();
     }
 
     drawCachedGrid() {
