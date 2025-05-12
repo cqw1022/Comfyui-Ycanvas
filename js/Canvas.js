@@ -894,7 +894,7 @@ export class Canvas {
         });
         
         // 绘制裁剪区域
-        if (this.isCroppingMode && this.isCropping) {
+        if (this.isCroppingMode && (this.isCropping || (this.cropStartX !== this.cropEndX && this.cropStartY !== this.cropEndY))) {
             ctx.save();
             
             // 计算裁剪区域的坐标和尺寸
@@ -957,6 +957,40 @@ export class Canvas {
         for (let y = 0; y <= this.height; y += step) {
             this.ctx.fillText(y.toString(), this.height / 2, y);
         }
+        this.ctx.restore();
+
+        // 辅助线：500像素内每隔100像素画虚线
+        this.ctx.save();
+        this.ctx.strokeStyle = "#f00";
+        this.ctx.setLineDash([10, 10]);
+        this.ctx.lineWidth = 1;
+        // 垂直辅助线（距离左、右边缘0~500像素，每隔100像素）
+        for (let x = 0; x <= 500 && x <= this.width; x += 100) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, this.height);
+            this.ctx.stroke();
+            if (x !== 0 && this.width - x !== x) { // 避免重复画0和中线
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.width - x, 0);
+                this.ctx.lineTo(this.width - x, this.height);
+                this.ctx.stroke();
+            }
+        }
+        // 水平辅助线（距离上、下边缘0~500像素，每隔100像素）
+        for (let y = 0; y <= 500 && y <= this.height; y += 100) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(this.width, y);
+            this.ctx.stroke();
+            if (y !== 0 && this.height - y !== y) { // 避免重复画0和中线
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.height - y);
+                this.ctx.lineTo(this.width, this.height - y);
+                this.ctx.stroke();
+            }
+        }
+        this.ctx.setLineDash([]);
         this.ctx.restore();
     }
 
@@ -1437,44 +1471,51 @@ export class Canvas {
             const newLayers = [];
             // 处理完成的图层计数
             let processedCount = 0;
-            
-            // 遍历所有图层并应用裁剪
+            // 只裁剪选中的图层
+            const selectedSet = new Set(this.selectedLayers);
             originalLayers.forEach(layer => {
+                if (!selectedSet.has(layer)) {
+                    // 未选中的图层直接加入新图层列表
+                    newLayers.push(layer);
+                    processedCount++;
+                    if (processedCount === originalLayers.length) {
+                        this.layers = newLayers;
+                        this.selectedLayer = null;
+                        this.selectedLayers = [];
+                        this.exitCroppingMode();
+                        this.render();
+                        console.log("裁剪应用成功");
+                    }
+                    return;
+                }
                 // 创建临时画布
                 const tempCanvas = document.createElement('canvas');
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCanvas.width = layer.width;
                 tempCanvas.height = layer.height;
-                
                 // 绘制原始图像
                 tempCtx.drawImage(
                     layer.image,
                     0, 0,
                     layer.width, layer.height
                 );
-                
                 // 创建裁剪遮罩
                 const maskCanvas = document.createElement('canvas');
                 const maskCtx = maskCanvas.getContext('2d');
                 maskCanvas.width = layer.width;
                 maskCanvas.height = layer.height;
-                
                 // 填充黑色背景（完全透明）
                 maskCtx.fillStyle = 'rgba(0, 0, 0, 0)';
                 maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
-                
                 // 计算裁剪区域相对于图层的坐标
                 const layerCropX = cropX - layer.x;
                 const layerCropY = cropY - layer.y;
-                
                 // 在裁剪区域内填充白色（完全不透明）
                 maskCtx.fillStyle = 'rgba(255, 255, 255, 1)';
                 maskCtx.fillRect(layerCropX, layerCropY, cropWidth, cropHeight);
-                
                 // 应用裁剪遮罩
                 tempCtx.globalCompositeOperation = 'destination-in';
                 tempCtx.drawImage(maskCanvas, 0, 0);
-                
                 // 创建新图像
                 const newImage = new Image();
                 newImage.onload = () => {
@@ -1490,31 +1531,22 @@ export class Canvas {
                         blendMode: layer.blendMode || 'normal',
                         opacity: layer.opacity || 1
                     };
-                    
                     // 添加到新图层列表
                     newLayers.push(newLayer);
-                    
-                    // 增加处理完成计数
                     processedCount++;
-                    
                     // 当所有图层都处理完成时
                     if (processedCount === originalLayers.length) {
-                        // 替换图层列表
                         this.layers = newLayers;
-                        // 重置选择状态
                         this.selectedLayer = null;
                         this.selectedLayers = [];
-                        // 退出裁剪模式并重新渲染
                         this.exitCroppingMode();
                         this.render();
-                        console.log("所有图层裁剪应用成功");
+                        console.log("裁剪应用成功");
                     }
                 };
-                
                 // 转换为PNG并保持透明度
                 newImage.src = tempCanvas.toDataURL('image/png');
             });
-            
         } catch (error) {
             console.error("应用裁剪时出错:", error);
         }
