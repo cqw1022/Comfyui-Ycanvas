@@ -185,13 +185,11 @@ export class Canvas {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
 
-            // 计算画布的缩放比例
-            const displayWidth = rect.width;
-            const displayHeight = rect.height;
-            const scaleX = this.width / displayWidth;
-            const scaleY = this.height / displayHeight;
-            const scaledMouseX = mouseX * scaleX;
-            const scaledMouseY = mouseY * scaleY;
+            // 精确换算鼠标坐标到canvas像素坐标
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const scaledMouseX = (e.clientX - rect.left) * scaleX;
+            const scaledMouseY = (e.clientY - rect.top) * scaleY;
 
             // 如果在裁剪模式下
             if (this.isCroppingMode) {
@@ -291,11 +289,11 @@ export class Canvas {
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
             
-            // 计算画布的缩放比例
-            const displayWidth = rect.width;
-            const displayHeight = rect.height;
-            const scaleX = this.width / displayWidth;
-            const scaleY = this.height / displayHeight;
+            // 精确换算鼠标坐标到canvas像素坐标
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            const scaledMouseX = (e.clientX - rect.left) * scaleX;
+            const scaledMouseY = (e.clientY - rect.top) * scaleY;
             
             // 处理裁剪模式下的鼠标移动
             if (this.isCroppingMode) {
@@ -360,35 +358,41 @@ export class Canvas {
                     
                 } else {
                     // 检查是否悬停在控制点上
-                    const cropX = Math.min(this.cropStartX, this.cropEndX);
-                    const cropY = Math.min(this.cropStartY, this.cropEndY);
-                    const cropWidth = Math.abs(this.cropEndX - this.cropStartX);
-                    const cropHeight = Math.abs(this.cropEndY - this.cropStartY);
-                    
+                    const x1 = this.cropStartX, x2 = this.cropEndX;
+                    const y1 = this.cropStartY, y2 = this.cropEndY;
+                    const left = Math.min(x1, x2), right = Math.max(x1, x2);
+                    const top = Math.min(y1, y2), bottom = Math.max(y1, y2);
                     const handles = [
-                        { x: cropX, y: cropY, cursor: 'nw-resize' },
-                        { x: cropX + cropWidth/2, y: cropY, cursor: 'n-resize' },
-                        { x: cropX + cropWidth, y: cropY, cursor: 'ne-resize' },
-                        { x: cropX + cropWidth, y: cropY + cropHeight/2, cursor: 'e-resize' },
-                        { x: cropX + cropWidth, y: cropY + cropHeight, cursor: 'se-resize' },
-                        { x: cropX + cropWidth/2, y: cropY + cropHeight, cursor: 's-resize' },
-                        { x: cropX, y: cropY + cropHeight, cursor: 'sw-resize' },
-                        { x: cropX, y: cropY + cropHeight/2, cursor: 'w-resize' }
+                        { x: left, y: top, cursor: 'nw-resize' },
+                        { x: (left + right) / 2, y: top, cursor: 'n-resize' },
+                        { x: right, y: top, cursor: 'ne-resize' },
+                        { x: right, y: (top + bottom) / 2, cursor: 'e-resize' },
+                        { x: right, y: bottom, cursor: 'se-resize' },
+                        { x: (left + right) / 2, y: bottom, cursor: 's-resize' },
+                        { x: left, y: bottom, cursor: 'sw-resize' },
+                        { x: left, y: (top + bottom) / 2, cursor: 'w-resize' }
                     ];
                     
                     let hoveredHandle = null;
                     handles.forEach((handle, index) => {
-                        if (Math.abs(scaledMouseX - handle.x) < this.cropHandleSize &&
-                            Math.abs(scaledMouseY - handle.y) < this.cropHandleSize) {
+                        // 调试输出
+                        console.log('检测控制点', index, {
+                            scaledMouseX, scaledMouseY,
+                            handleX: handle.x, handleY: handle.y,
+                            cropHandleSize: this.cropHandleSize
+                        });
+                        if (Math.abs(scaledMouseX - handle.x) <= this.cropHandleSize / 2 &&
+                            Math.abs(scaledMouseY - handle.y) <= this.cropHandleSize / 2) {
                             hoveredHandle = index;
                             this.canvas.style.cursor = handle.cursor;
+                            console.log('命中控制点', index);
                         }
                     });
                     
                     if (hoveredHandle === null) {
                         // 检查是否在裁剪框内
-                        if (scaledMouseX > cropX && scaledMouseX < cropX + cropWidth &&
-                            scaledMouseY > cropY && scaledMouseY < cropY + cropHeight) {
+                        if (scaledMouseX > left && scaledMouseX < right &&
+                            scaledMouseY > top && scaledMouseY < bottom) {
                             this.canvas.style.cursor = 'move';
                         } else {
                             this.canvas.style.cursor = 'crosshair';
@@ -919,15 +923,19 @@ export class Canvas {
             
             // 绘制控制点
             const handleSize = this.cropHandleSize;
+            const x1 = this.cropStartX, x2 = this.cropEndX;
+            const y1 = this.cropStartY, y2 = this.cropEndY;
+            const left = Math.min(x1, x2), right = Math.max(x1, x2);
+            const top = Math.min(y1, y2), bottom = Math.max(y1, y2);
             const handles = [
-                { x: cropX, y: cropY, cursor: 'nw-resize' },
-                { x: cropX + cropWidth/2, y: cropY, cursor: 'n-resize' },
-                { x: cropX + cropWidth, y: cropY, cursor: 'ne-resize' },
-                { x: cropX + cropWidth, y: cropY + cropHeight/2, cursor: 'e-resize' },
-                { x: cropX + cropWidth, y: cropY + cropHeight, cursor: 'se-resize' },
-                { x: cropX + cropWidth/2, y: cropY + cropHeight, cursor: 's-resize' },
-                { x: cropX, y: cropY + cropHeight, cursor: 'sw-resize' },
-                { x: cropX, y: cropY + cropHeight/2, cursor: 'w-resize' }
+                { x: left, y: top, cursor: 'nw-resize' },
+                { x: (left + right) / 2, y: top, cursor: 'n-resize' },
+                { x: right, y: top, cursor: 'ne-resize' },
+                { x: right, y: (top + bottom) / 2, cursor: 'e-resize' },
+                { x: right, y: bottom, cursor: 'se-resize' },
+                { x: (left + right) / 2, y: bottom, cursor: 's-resize' },
+                { x: left, y: bottom, cursor: 'sw-resize' },
+                { x: left, y: (top + bottom) / 2, cursor: 'w-resize' }
             ];
             
             handles.forEach((handle, index) => {
@@ -1433,7 +1441,7 @@ export class Canvas {
         this.canvas.style.cursor = 'crosshair';
         
         // 添加裁剪控制点相关属性
-        this.cropHandleSize = 8; // 控制点大小
+        this.cropHandleSize = 20; // 控制点大小
         this.cropHandleHovered = null; // 当前悬停的控制点
         this.cropHandleDragging = null; // 当前拖拽的控制点
         this.cropBoxDragging = false; // 是否正在拖拽整个裁剪框
